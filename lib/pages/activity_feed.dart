@@ -5,6 +5,7 @@ import 'package:PicBee1/widgets/header.dart';
 import 'package:PicBee1/widgets/progress.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -16,7 +17,7 @@ class ActivityFeed extends StatefulWidget {
 class _ActivityFeedState extends State<ActivityFeed> {
   getActivityFeed() async {
     QuerySnapshot snapshot = await activityFeedRef
-        .document(currentUser.id)
+        .document(_firebaseUser.uid)
         .collection('feedItems')
         .orderBy('timestamp', descending: true)
         .limit(50)
@@ -29,23 +30,45 @@ class _ActivityFeedState extends State<ActivityFeed> {
     return feedItems;
   }
 
+  FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseUser _firebaseUser;
+
+  bool isLoading = true;
+
+  getFirebaseUser() async {
+    _firebaseUser = await _auth.currentUser();
+    print('current user is: $_firebaseUser');
+    print('current user uid is: ${_firebaseUser.uid}');
+
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  void initState() {
+    super.initState();
+    getFirebaseUser();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.orange,
       appBar: header(context, titleText: "Activity Feed"),
-      body: Container(
-          child: FutureBuilder(
-        future: getActivityFeed(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return circularProgress();
-          }
-          return ListView(
-            children: snapshot.data,
-          );
-        },
-      )),
+      body: isLoading == false
+          ? Container(
+              child: FutureBuilder(
+              future: getActivityFeed(),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) {
+                  return circularProgress();
+                }
+                return ListView(
+                  children: snapshot.data,
+                );
+              },
+            ))
+          : circularProgress(),
     );
   }
 }

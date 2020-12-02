@@ -1,17 +1,21 @@
 import 'dart:io';
-
+import 'package:PicBee1/global_variable.dart';
 import 'package:PicBee1/models/user.dart';
 import 'package:PicBee1/pages/activity_feed.dart';
 import 'package:PicBee1/pages/create_account.dart';
+import 'package:PicBee1/pages/login_with_email.dart';
 import 'package:PicBee1/pages/profile.dart';
 import 'package:PicBee1/pages/search.dart';
+import 'package:PicBee1/pages/signup.dart';
 import 'package:PicBee1/pages/timeline.dart';
 import 'package:PicBee1/pages/upload.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 final GoogleSignIn googleSignIn = GoogleSignIn();
@@ -27,6 +31,8 @@ final DateTime timestamp = DateTime.now();
 User currentUser;
 
 class Home extends StatefulWidget {
+  String username;
+  Home({Key key, this.username}) : super(key: key);
   @override
   _HomeState createState() => _HomeState();
 }
@@ -41,6 +47,11 @@ class _HomeState extends State<Home> {
   @override
   void initState() {
     super.initState();
+
+    getFirebaseUser();
+    setState(() {
+      isAuth = GlobalVariable.isAuth;
+    });
     pageController = PageController();
     // Detects when user signed in
     googleSignIn.onCurrentUserChanged.listen((account) {
@@ -54,6 +65,9 @@ class _HomeState extends State<Home> {
     }).catchError((err) {
       print('Error signing in: $err');
     });
+    // Timer(Duration(seconds: 2), () {
+    //   isAuth = false;
+    // });
   }
 
   handleSignIn(GoogleSignInAccount account) async {
@@ -75,7 +89,7 @@ class _HomeState extends State<Home> {
     if (Platform.isIOS) getiOSPermission();
 
     _firebaseMessaging.getToken().then((token) {
-      print("Firebase Messaging Token: $token\n");
+      // print("Firebase Messaging Token: $token\n");
       usersRef
           .document(user.id)
           .updateData({"androidNotificationToken": token});
@@ -85,11 +99,11 @@ class _HomeState extends State<Home> {
       // onLaunch: (Map<String, dynamic> message) async {},
       // onResume: (Map<String, dynamic> message) async {},
       onMessage: (Map<String, dynamic> message) async {
-        print("on message: $message\n");
+        // print("on message: $message\n");
         final String recipientId = message['data']['recipient'];
         final String body = message['notification']['body'];
         if (recipientId == user.id) {
-          print("Notification shown!");
+          // print("Notification shown!");
           SnackBar snackbar = SnackBar(
               content: Text(
             body,
@@ -97,7 +111,7 @@ class _HomeState extends State<Home> {
           ));
           _scaffoldKey.currentState.showSnackBar(snackbar);
         }
-        print("Notification NOT shown");
+        // print("Notification NOT shown");
       },
     );
   }
@@ -106,7 +120,7 @@ class _HomeState extends State<Home> {
     _firebaseMessaging.requestNotificationPermissions(
         IosNotificationSettings(alert: true, badge: true, sound: true));
     _firebaseMessaging.onIosSettingsRegistered.listen((settings) {
-      print("Settings registered: $settings");
+      // print("Settings registered: $settings");
     });
   }
 
@@ -149,14 +163,6 @@ class _HomeState extends State<Home> {
     super.dispose();
   }
 
-  login() {
-    googleSignIn.signIn();
-  }
-
-  logout() {
-    googleSignIn.signOut();
-  }
-
   onPageChanged(int pageIndex) {
     setState(() {
       this.pageIndex = pageIndex;
@@ -171,6 +177,15 @@ class _HomeState extends State<Home> {
     );
   }
 
+  FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseUser _firebaseUser;
+
+  getFirebaseUser() async {
+    _firebaseUser = await _auth.currentUser();
+    print('current user is: $_firebaseUser');
+    print('current user uid is: ${_firebaseUser.uid}');
+  }
+
   Scaffold buildAuthScreen() {
     return Scaffold(
       key: _scaffoldKey,
@@ -178,9 +193,9 @@ class _HomeState extends State<Home> {
         children: <Widget>[
           Timeline(currentUser: currentUser),
           ActivityFeed(),
-          Upload(currentUser: currentUser),
+          Upload(),
           Search(),
-          Profile(profileId: currentUser?.id),
+          Profile(),
         ],
         controller: pageController,
         onPageChanged: onPageChanged,
@@ -235,19 +250,57 @@ class _HomeState extends State<Home> {
                 color: Colors.white,
               ),
             ),
+            SizedBox(
+              height: 10.0,
+            ),
             GestureDetector(
-              onTap: login,
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) {
+                  return SignIn();
+                }));
+              },
               child: Container(
-                width: 260.0,
+                width: 250.0,
                 height: 60.0,
                 decoration: BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage(
-                      'assets/images/google_signin_button.png',
+                      'assets/images/email.png',
                     ),
                     fit: BoxFit.cover,
                   ),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 25.0, right: 20.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'Not a member?',
+                    style: TextStyle(color: Colors.white54, fontSize: 15.0),
+                  ),
+                  SizedBox(
+                    width: 5.0,
+                  ),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SignUp(),
+                          ));
+                    },
+                    child: Text(
+                      'SignUp',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17.0,
+                          decoration: TextDecoration.underline),
+                    ),
+                  ),
+                ],
               ),
             )
           ],

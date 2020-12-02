@@ -126,7 +126,7 @@ class UserResult extends StatelessWidget {
       child: Column(
         children: <Widget>[
           GestureDetector(
-            onTap: () => showProfile(context, profileId: user.id),
+            onTap: () => showProfile(context, profileId: user.uid),
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: Colors.grey,

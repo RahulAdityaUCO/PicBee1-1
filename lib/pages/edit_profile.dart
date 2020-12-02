@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:PicBee1/models/user.dart';
 import 'package:PicBee1/pages/home.dart';
 import 'package:PicBee1/widgets/progress.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import '../global_variable.dart';
 
 class EditProfile extends StatefulWidget {
   final String currentUserId;
@@ -106,9 +111,27 @@ class _EditProfileState extends State<EditProfile> {
     }
   }
 
+  bool loading = false;
+
   logout() async {
-    await googleSignIn.signOut();
-    Navigator.push(context, MaterialPageRoute(builder: (context) => Home()));
+    setState(() {
+      loading = true;
+    });
+
+    Timer(Duration(milliseconds: 500), () {
+      FirebaseAuth.instance.signOut().then((action) {
+        setState(() {
+          GlobalVariable.isAuth = false;
+        });
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => Home()));
+      }).catchError((e) {
+        print(e);
+        setState(() {
+          loading = false;
+        });
+      });
+    });
   }
 
   @override
@@ -148,8 +171,8 @@ class _EditProfileState extends State<EditProfile> {
                         ),
                         child: CircleAvatar(
                           radius: 50.0,
-                          backgroundImage:
-                              CachedNetworkImageProvider(user.photoUrl),
+                          // backgroundImage:
+                          //     CachedNetworkImageProvider(user.photoUrl),
                         ),
                       ),
                       Padding(
@@ -172,17 +195,26 @@ class _EditProfileState extends State<EditProfile> {
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: FlatButton.icon(
-                          onPressed: logout,
-                          icon: Icon(Icons.cancel, color: Colors.red),
-                          label: Text(
-                            "Logout",
-                            style: TextStyle(color: Colors.red, fontSize: 20.0),
-                          ),
-                        ),
-                      ),
+                      loading == false
+                          ? Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: FlatButton.icon(
+                                onPressed: logout,
+                                icon: Icon(Icons.cancel, color: Colors.red),
+                                label: Text(
+                                  "Logout",
+                                  style: TextStyle(
+                                      color: Colors.red, fontSize: 20.0),
+                                ),
+                              ),
+                            )
+                          : Padding(
+                              padding: EdgeInsets.all(16.0),
+                              child: CircularProgressIndicator(
+                                valueColor:
+                                    AlwaysStoppedAnimation(Colors.purple),
+                              ),
+                            )
                     ],
                   ),
                 ),

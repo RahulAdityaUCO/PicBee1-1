@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:PicBee1/models/user.dart';
 import 'package:PicBee1/pages/home.dart';
 import 'package:PicBee1/pages/search.dart';
@@ -5,6 +7,7 @@ import 'package:PicBee1/widgets/header.dart';
 import 'package:PicBee1/widgets/post.dart';
 import 'package:PicBee1/widgets/progress.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 final usersRef = Firestore.instance.collection('users');
@@ -22,17 +25,29 @@ class _TimelineState extends State<Timeline> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Post> posts;
   List<String> followingList = [];
+  FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseUser _firebaseUser;
+
+  getFirebaseUser() async {
+    _firebaseUser = await _auth.currentUser();
+    print('current user is: $_firebaseUser');
+    print('current user uid is: ${_firebaseUser.uid}');
+  }
 
   @override
   void initState() {
     super.initState();
-    getTimeline();
-    getFollowing();
+    getFirebaseUser();
+
+    Timer(Duration(seconds: 2), () {
+      getTimeline();
+      getFollowing();
+    });
   }
 
   getTimeline() async {
     QuerySnapshot snapshot = await timelineRef
-        .document(widget.currentUser.id)
+        .document(_firebaseUser.uid)
         .collection('timelinePosts')
         .orderBy('timestamp', descending: true)
         .getDocuments();
@@ -45,7 +60,7 @@ class _TimelineState extends State<Timeline> {
 
   getFollowing() async {
     QuerySnapshot snapshot = await followingRef
-        .document(currentUser.id)
+        .document(_firebaseUser.uid)
         .collection('userFollowing')
         .getDocuments();
     setState(() {
@@ -74,8 +89,9 @@ class _TimelineState extends State<Timeline> {
         List<UserResult> userResults = [];
         snapshot.data.documents.forEach((doc) {
           User user = User.fromDocument(doc);
-          final bool isAuthUser = currentUser.id == user.id;
-          final bool isFollowingUser = followingList.contains(user.id);
+          final bool isAuthUser = _firebaseUser.uid == _firebaseUser.uid;
+          final bool isFollowingUser =
+              followingList.contains(_firebaseUser.uid);
           // remove auth user from recommended list
           if (isAuthUser) {
             return;

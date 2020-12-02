@@ -71,7 +71,7 @@ class Post extends StatefulWidget {
 }
 
 class _PostState extends State<Post> {
-  final String currentUserId = currentUser?.id;
+  final String currentUserId = currentUser?.uid;
   final String postId;
   final String ownerId;
   final String username;
@@ -109,7 +109,7 @@ class _PostState extends State<Post> {
             backgroundColor: Colors.grey,
           ),
           title: GestureDetector(
-            onTap: () => showProfile(context, profileId: user.id),
+            onTap: () => showProfile(context, profileId: user.uid),
             child: Text(
               user.username ?? "",
               style: TextStyle(
@@ -239,7 +239,7 @@ class _PostState extends State<Post> {
           .setData({
         "type": "like",
         "username": currentUser.username ?? "",
-        "userId": currentUser.id,
+        "userId": currentUser.uid,
         "userProfileImg": currentUser.photoUrl,
         "postId": postId,
         "mediaUrl": mediaUrl,

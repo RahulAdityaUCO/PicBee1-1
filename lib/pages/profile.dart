@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:PicBee1/models/user.dart';
 import 'package:PicBee1/pages/edit_profile.dart';
 import 'package:PicBee1/pages/home.dart';
@@ -7,6 +9,7 @@ import 'package:PicBee1/widgets/post_tile.dart';
 import 'package:PicBee1/widgets/progress.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
@@ -20,29 +23,48 @@ class Profile extends StatefulWidget {
 }
 
 class _ProfileState extends State<Profile> {
-  final String currentUserId = currentUser?.id;
+  //final String currentUserId = currentUser?.uid;
   String postOrientation = "grid";
   bool isFollowing = false;
-  bool isLoading = false;
+  bool isLoading = true;
   int postCount = 0;
   int followerCount = 0;
   int followingCount = 0;
   List<Post> posts = [];
 
+  FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseUser _firebaseUser;
+
+  getFirebaseUser() async {
+    _firebaseUser = await _auth.currentUser();
+    print('current user is: $_firebaseUser');
+    print('current user uid is: ${_firebaseUser.uid}');
+  }
+
   @override
   void initState() {
+    getFirebaseUser();
     super.initState();
-    getProfilePosts();
-    getFollowers();
-    getFollowing();
-    checkIfFollowing();
+
+    Timer(Duration(milliseconds: 2000), () {
+      getProfilePosts();
+      getFollowers();
+      getFollowing();
+      checkIfFollowing();
+    });
+
+    Timer(Duration(milliseconds: 3000), () {
+      setState(() {
+        isLoading = false;
+      });
+    });
   }
 
   checkIfFollowing() async {
     DocumentSnapshot doc = await followersRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('userFollowers')
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .get();
     setState(() {
       isFollowing = doc.exists;
@@ -51,7 +73,7 @@ class _ProfileState extends State<Profile> {
 
   getFollowers() async {
     QuerySnapshot snapshot = await followersRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('userFollowers')
         .getDocuments();
     setState(() {
@@ -61,7 +83,7 @@ class _ProfileState extends State<Profile> {
 
   getFollowing() async {
     QuerySnapshot snapshot = await followingRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('userFollowing')
         .getDocuments();
     setState(() {
@@ -70,16 +92,12 @@ class _ProfileState extends State<Profile> {
   }
 
   getProfilePosts() async {
-    setState(() {
-      isLoading = true;
-    });
     QuerySnapshot snapshot = await postsRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('userPosts')
         .orderBy('timestamp', descending: true)
         .getDocuments();
     setState(() {
-      isLoading = false;
       postCount = snapshot.documents.length;
       posts = snapshot.documents.map((doc) => Post.fromDocument(doc)).toList();
     });
@@ -113,7 +131,8 @@ class _ProfileState extends State<Profile> {
     Navigator.push(
         context,
         MaterialPageRoute(
-            builder: (context) => EditProfile(currentUserId: currentUserId)));
+            builder: (context) =>
+                EditProfile(currentUserId: _firebaseUser.uid)));
   }
 
   Container buildButton({String text, Function function}) {
@@ -122,7 +141,7 @@ class _ProfileState extends State<Profile> {
       child: FlatButton(
         onPressed: function,
         child: Container(
-          width: 220.0,
+          width: 200.0,
           height: 27.0,
           child: Text(
             text,
@@ -146,7 +165,7 @@ class _ProfileState extends State<Profile> {
 
   buildProfileButton() {
     // viewing your own profile - should show edit profile button
-    bool isProfileOwner = currentUserId == widget.profileId;
+    bool isProfileOwner = _firebaseUser.uid == _firebaseUser.uid;
     if (isProfileOwner) {
       return buildButton(
         text: "Edit Profile",
@@ -171,9 +190,9 @@ class _ProfileState extends State<Profile> {
     });
     // remove follower
     followersRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('userFollowers')
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .get()
         .then((doc) {
       if (doc.exists) {
@@ -182,9 +201,9 @@ class _ProfileState extends State<Profile> {
     });
     // remove following
     followingRef
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .collection('userFollowing')
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .get()
         .then((doc) {
       if (doc.exists) {
@@ -193,9 +212,9 @@ class _ProfileState extends State<Profile> {
     });
     // delete activity feed item for them
     activityFeedRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('feedItems')
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .get()
         .then((doc) {
       if (doc.exists) {
@@ -210,26 +229,26 @@ class _ProfileState extends State<Profile> {
     });
     // Make auth user follower of THAT user (update THEIR followers collection)
     followersRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('userFollowers')
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .setData({});
     // Put THAT user on YOUR following collection (update your following collection)
     followingRef
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .collection('userFollowing')
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .setData({});
     // add activity feed item for that user to notify about new follower (us)
     activityFeedRef
-        .document(widget.profileId)
+        .document(_firebaseUser.uid)
         .collection('feedItems')
-        .document(currentUserId)
+        .document(_firebaseUser.uid)
         .setData({
       "type": "follow",
-      "ownerId": widget.profileId,
+      "ownerId": _firebaseUser.uid,
       "username": currentUser.username ?? "",
-      "userId": currentUserId,
+      "userId": _firebaseUser.uid,
       "userProfileImg": currentUser.photoUrl,
       "timestamp": timestamp,
     });
@@ -237,7 +256,7 @@ class _ProfileState extends State<Profile> {
 
   buildProfileHeader() {
     return FutureBuilder(
-        future: usersRef.document(widget.profileId).get(),
+        future: usersRef.document(_firebaseUser.uid).get(),
         builder: (BuildContext context, AsyncSnapshot snapshot) {
           if (!snapshot.hasData) {
             return circularProgress();
@@ -252,8 +271,8 @@ class _ProfileState extends State<Profile> {
                     CircleAvatar(
                       radius: 40.0,
                       backgroundColor: Colors.grey,
-                      backgroundImage:
-                          CachedNetworkImageProvider(user.photoUrl),
+                      // backgroundImage:
+                      //     CachedNetworkImageProvider(user.photoUrl),
                     ),
                     Expanded(
                       flex: 1,
@@ -314,9 +333,7 @@ class _ProfileState extends State<Profile> {
   }
 
   buildProfilePosts() {
-    if (isLoading) {
-      return circularProgress();
-    } else if (posts.isEmpty) {
+    if (posts.isEmpty) {
       return Container(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -389,17 +406,19 @@ class _ProfileState extends State<Profile> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: header(context, titleText: "Profile"),
-      body: ListView(
-        children: <Widget>[
-          buildProfileHeader(),
-          Divider(),
-          buildTogglePostOrientation(),
-          Divider(
-            height: 0.0,
-          ),
-          buildProfilePosts(),
-        ],
-      ),
+      body: isLoading == false
+          ? ListView(
+              children: <Widget>[
+                buildProfileHeader(),
+                Divider(),
+                buildTogglePostOrientation(),
+                Divider(
+                  height: 0.0,
+                ),
+                buildProfilePosts(),
+              ],
+            )
+          : circularProgress(),
     );
   }
 }

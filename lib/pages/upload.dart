@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:PicBee1/models/user.dart';
 import 'package:PicBee1/pages/home.dart';
 import 'package:PicBee1/widgets/progress.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
@@ -14,10 +16,6 @@ import 'package:uuid/uuid.dart';
 import 'package:image/image.dart' as Im;
 
 class Upload extends StatefulWidget {
-  final User currentUser;
-
-  Upload({this.currentUser});
-
   @override
   _UploadState createState() => _UploadState();
 }
@@ -109,6 +107,7 @@ class _UploadState extends State<Upload>
   compressImage() async {
     final tempDir = await getTemporaryDirectory();
     final path = tempDir.path;
+    print('postId is: $postId');
     Im.Image imageFile = Im.decodeImage(file.readAsBytesSync());
     final compressedImageFile = File('$path/img_$postId.jpg')
       ..writeAsBytesSync(Im.encodeJpg(imageFile, quality: 85));
@@ -125,23 +124,47 @@ class _UploadState extends State<Upload>
     return downloadUrl;
   }
 
+  DateTime timestamp = DateTime.now();
+
   createPostInFirestore(
       {String mediaUrl, String location, String description}) {
     postsRef
-        .document(widget.currentUser.id)
+        .document(_firebaseUser.uid)
         .collection("userPosts")
-        .document(postId)
+        .document(_firebaseUser.uid)
         .setData({
       "postId": postId,
-      "ownerId": widget.currentUser.id,
-      "username": widget.currentUser.username ?? "",
+      "ownerId": _firebaseUser.uid,
+      "username": _firebaseUser.displayName ?? "",
       "mediaUrl": mediaUrl,
       "description": description,
       "location": location,
       "timestamp": timestamp,
-      "likes": {},
+      //"likes": {},
     });
   }
+
+  FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseUser _firebaseUser;
+
+  getFirebaseUser() async {
+    _firebaseUser = await _auth.currentUser();
+    print('current user is: $_firebaseUser');
+    print('current user uid is: ${_firebaseUser.uid}');
+  }
+
+  void initState() {
+    super.initState();
+    getFirebaseUser();
+
+    Timer(Duration(milliseconds: 1200), () {
+      setState(() {
+        loading = false;
+      });
+    });
+  }
+
+  bool loading = true;
 
   handleSubmit() async {
     setState(() {
@@ -165,109 +188,110 @@ class _UploadState extends State<Upload>
 
   Scaffold buildUploadForm() {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white70,
-        leading: IconButton(
-            icon: Icon(Icons.arrow_back, color: Colors.black),
-            onPressed: clearImage),
-        title: Text(
-          "Caption Post",
-          style: TextStyle(color: Colors.black),
-        ),
-        actions: [
-          FlatButton(
-            onPressed: isUploading ? null : () => handleSubmit(),
-            child: Text(
-              "Post",
-              style: TextStyle(
-                color: Colors.blueAccent,
-                fontWeight: FontWeight.bold,
-                fontSize: 20.0,
+        appBar: AppBar(
+          backgroundColor: Colors.white70,
+          leading: IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: clearImage),
+          title: Text(
+            "Caption Post",
+            style: TextStyle(color: Colors.black),
+          ),
+          actions: [
+            FlatButton(
+              onPressed: isUploading ? null : () => handleSubmit(),
+              child: Text(
+                "Post",
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20.0,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-      body: ListView(
-        children: <Widget>[
-          isUploading ? linearProgress() : Text(""),
-          Container(
-            height: 220.0,
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      fit: BoxFit.cover,
-                      image: FileImage(file),
+          ],
+        ),
+        body: loading == false
+            ? ListView(
+                children: <Widget>[
+                  isUploading ? linearProgress() : Text(""),
+                  Container(
+                    height: 220.0,
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              fit: BoxFit.cover,
+                              image: FileImage(file),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(top: 10.0),
-          ),
-          ListTile(
-            leading: CircleAvatar(
-              backgroundImage:
-                  CachedNetworkImageProvider(widget.currentUser.photoUrl),
-            ),
-            title: Container(
-              width: 250.0,
-              child: TextField(
-                controller: captionController,
-                decoration: InputDecoration(
-                  hintText: "Write a caption...",
-                  border: InputBorder.none,
-                ),
-              ),
-            ),
-          ),
-          Divider(),
-          ListTile(
-            leading: Icon(
-              Icons.pin_drop,
-              color: Colors.orange,
-              size: 35.0,
-            ),
-            title: Container(
-              width: 250.0,
-              child: TextField(
-                controller: locationController,
-                decoration: InputDecoration(
-                  hintText: "Where was this photo taken?",
-                  border: InputBorder.none,
-                ),
-              ),
-            ),
-          ),
-          Container(
-            width: 200.0,
-            height: 100.0,
-            alignment: Alignment.center,
-            child: RaisedButton.icon(
-              label: Text(
-                "Use Current Location",
-                style: TextStyle(color: Colors.white),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30.0),
-              ),
-              color: Colors.blue,
-              onPressed: getUserLocation,
-              icon: Icon(
-                Icons.my_location,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+                  Padding(
+                    padding: EdgeInsets.only(top: 10.0),
+                  ),
+                  ListTile(
+                    leading: CircleAvatar(
+                        // backgroundImage:
+                        //     CachedNetworkImageProvider(widget.currentUser.photoUrl),
+                        ),
+                    title: Container(
+                      width: 250.0,
+                      child: TextField(
+                        controller: captionController,
+                        decoration: InputDecoration(
+                          hintText: "Write a caption...",
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Divider(),
+                  ListTile(
+                    leading: Icon(
+                      Icons.pin_drop,
+                      color: Colors.orange,
+                      size: 35.0,
+                    ),
+                    title: Container(
+                      width: 250.0,
+                      child: TextField(
+                        controller: locationController,
+                        decoration: InputDecoration(
+                          hintText: "Where was this photo taken?",
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 200.0,
+                    height: 100.0,
+                    alignment: Alignment.center,
+                    child: RaisedButton.icon(
+                      label: Text(
+                        "Use Current Location",
+                        style: TextStyle(color: Colors.white),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30.0),
+                      ),
+                      color: Colors.blue,
+                      onPressed: getUserLocation,
+                      icon: Icon(
+                        Icons.my_location,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : circularProgress());
   }
 
   getUserLocation() async {

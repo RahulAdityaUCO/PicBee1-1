@@ -1,9 +1,15 @@
 import 'dart:async';
 
+import 'package:PicBee1/global_variable.dart';
+import 'package:PicBee1/pages/home.dart';
 import 'package:PicBee1/widgets/header.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class CreateAccount extends StatefulWidget {
+  String email, password;
+  CreateAccount({Key key, this.email, this.password}) : super(key: key);
   @override
   _CreateAccountState createState() => _CreateAccountState();
 }
@@ -21,9 +27,48 @@ class _CreateAccountState extends State<CreateAccount> {
       SnackBar snackbar = SnackBar(content: Text("Welcome $username!"));
       _scaffoldKey.currentState.showSnackBar(snackbar);
       Timer(Duration(seconds: 2), () {
-        Navigator.pop(context, username);
+        loginUser();
+
+        //Navigator.pop(context, username);
       });
     }
+  }
+
+  loginUser() async {
+    FirebaseAuth.instance
+        .signInWithEmailAndPassword(
+            email: widget.email, password: widget.password)
+        .then((user) {
+      setState(() {
+        GlobalVariable.isAuth = true;
+      });
+
+      Navigator.push(context, MaterialPageRoute(builder: (context) {
+        return Home(
+          username: username,
+        );
+      }));
+    }).catchError((e) {
+      //print(e);
+      // code, message, details
+
+      String message = 'Something went wrong';
+      String error = '';
+      error = e.code;
+      if (error.contains('ERROR_WRONG_PASS')) {
+        setState(() {
+          message = 'Email or Password is incorrect';
+        });
+
+        Fluttertoast.showToast(
+          msg: '$message',
+        );
+      } else {
+        Fluttertoast.showToast(
+          msg: '$e',
+        );
+      }
+    });
   }
 
   @override
